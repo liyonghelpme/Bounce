@@ -1,0 +1,290 @@
+#include "b3Body.h"
+#include "b3Scene.h"
+#include "..\Collision\Shapes\b3Polyhedron.h"
+#include "Contacts\b3Contact.h"
+
+b3Body::b3Body(const b3BodyDef& def, b3Scene* scene) {
+	m_flags = 0;
+	m_shapeList = nullptr;
+	m_shapeCount = 0;
+	m_contactList = nullptr;
+	m_sleepTime = B3_ZERO;
+	m_gravityScale = def.gravityScale;
+
+	m_scene = scene;
+	m_type = def.type;
+	m_userData = def.userData;
+	m_worldCenter = def.position;
+	m_orientation = def.orientation;
+	m_linearVelocity = def.linearVelocity;
+	m_angularVelocity = def.angularVelocity;
+
+	// Calculate the world transform.
+	m_transform.translation = m_worldCenter;
+	m_orientation.Normalize();
+	m_orientation.ToRotationMatrix(m_transform.rotation);
+
+	if (def.awake) {
+		m_flags |= e_awakeFlag;
+	}
+
+	if (m_type == e_dynamicBody) {
+		// Dynamic bodies has positive mass.
+		m_mass = B3_ONE;
+		m_invMass = B3_ONE;
+	}
+	else {
+		m_mass = B3_ZERO;
+		m_invMass = B3_ZERO;
+	}
+
+	m_invLocalInertia.SetZero();
+	m_invWorldInertia.SetZero();
+}
+
+b3Shape* b3Body::CreateShape(const b3ShapeDef& def) {
+	b3Assert(def.shape);
+
+	// The shape definition shape will be cloned.
+	b3Shape* shape = nullptr;
+	switch (def.shape->GetType()) {
+	case e_hull: {
+		// Grab pointer to the specific memory.
+		b3Polyhedron* poly1 = (b3Polyhedron*)def.shape;
+		void* mem = m_scene->m_blockAllocator.Allocate(sizeof(b3Polyhedron));
+		b3Polyhedron* poly2 = new (mem)b3Polyhedron();
+		// Clone the polyhedra.
+		*poly2 = *poly1;
+		shape = poly2;
+		break;
+	}
+	default: {
+		b3Assert(false);
+		break;
+	}
+	}
+
+	b3Assert(shape);
+
+	// Setup the shape with the definition.
+	shape->m_body = this;
+	shape->m_userData = def.userData;
+	shape->m_local = def.local;
+	shape->m_density = def.density;
+	shape->m_friction = def.friction;
+	shape->m_restitution = def.restitution;
+	shape->m_isSensor = def.sensor;
+
+	// Link the new shape into the singly-linked list of shapes of this body.
+	shape->m_next = m_shapeList;
+	m_shapeList = shape;
+	++m_shapeCount;
+
+	// Since a new shape was added the new inertial properties of 
+	// this body needs to be recomputed (mass, inertial, local and world center of mass).
+	if (shape->m_density > B3_ZERO) {
+		ResetMassData();
+	}
+
+	// Compute the world AABB of the new shape and assign a broad-phase proxy to it.
+	b3AABB aabb;
+	shape->ComputeAabb(aabb, m_transform * shape->m_local);
+	shape->broadPhaseID = m_scene->m_contactGraph.m_broadPhase.CreateProxy(aabb, shape);
+
+	// Tell the scene that a new shape was added to initially verify new contacts.
+	m_scene->m_flags |= b3Scene::e_bodyAddedFlag;
+
+	return shape;
+}
+
+void b3Body::DestroyContacts() {
+	// Quick function to remove all contacts associated with this body.
+	b3ContactEdge* ce = m_contactList;
+	while (ce) {
+		b3ContactEdge* ce0 = ce;
+		ce = ce->next;
+		m_scene->m_contactGraph.DestroyContact(ce0->contact);
+	}
+	m_contactList = nullptr;
+}
+
+void b3Body::DestroyContacts(const b3Shape* shape) {
+	// Quick function to remove all contacts associated with a shape.
+	b3ContactEdge* edge = m_contactList;
+	while (edge) {
+		b3Contact* c = edge->contact;
+		edge = edge->next;
+		if (shape == c->m_shapeA || shape == c->m_shapeB) {
+			// Destroy the contact and remove it from this body contact list.
+			m_scene->m_contactGraph.DestroyContact(c);
+		}
+	}
+}
+
+void b3Body::DestroyShape(b3Shape* shape) {
+	// Remove (and destroy) the given shape from this body.
+#ifdef _DEBUG
+	// Make sure the shape belongs to this body.
+	b3Assert(shape->m_body == this);
+	b3Assert(m_shapeCount > 0);
+
+	b3Shape** node = &m_shapeList;
+	bool found = false;
+	while (*node) {
+		if (*node == shape) {
+			*node = shape->m_next;
+			found = true;
+			break;
+		}
+		node = &(*node)->m_next;
+	}
+
+	b3Assert(found);
+#endif
+	// Destroy any contacts associated with the shape.
+	DestroyContacts(shape);
+
+	// Destroy the broad-phase proxy associated with the shape.
+	b3BlockAllocator* allocator = &m_scene->m_blockAllocator;
+	m_scene->m_contactGraph.m_broadPhase.DestroyProxy(shape->broadPhaseID);
+
+	shape->m_body = nullptr;
+	shape->m_next = nullptr;
+
+	// Deallocate shape from the heap.
+	switch (shape->GetType()) {
+	case e_hull: {
+		b3Polyhedron* poly = (b3Polyhedron*)shape;
+		poly->~b3Polyhedron();
+		allocator->Free(poly, sizeof(b3Polyhedron));
+		break;
+	}
+	default: {
+		b3Assert(false);
+		break;
+	}
+	}
+
+	--m_shapeCount;
+
+	// Since a shape was removed, the new inertial properties of 
+	// this body needs to be recomputed (mass, inertial, local and world center of mass).
+	ResetMassData();
+}
+
+void b3Body::DestroyShapes() {
+	// Destroy all shapes that belong to this body.
+	// Make sure all shapes belong to this body.
+	b3Shape* s = m_shapeList;
+	while (s) {
+		b3Shape* shape = s;
+		s = shape->m_next;
+
+		b3Assert(shape->m_body == this);
+		b3Assert(m_shapeCount > 0);
+
+		b3Shape** node = &m_shapeList;
+		bool found = false;
+		while (*node) {
+			if (*node == shape) {
+				*node = shape->m_next;
+				found = true;
+				break;
+			}
+			node = &(*node)->m_next;
+		}
+
+		b3Assert(found);
+
+		// Destroy all contacts associated with the shape.
+		DestroyContacts(shape);
+		// Destroy the shape broad-phase proxy.
+		b3BlockAllocator* allocator = &m_scene->m_blockAllocator;
+		m_scene->m_contactGraph.m_broadPhase.DestroyProxy(shape->broadPhaseID);
+
+		shape->m_body = nullptr;
+		shape->m_next = nullptr;
+
+		// Deallocate the shape.
+		switch (shape->GetType()) {
+		case e_hull : {
+			b3Polyhedron* poly = (b3Polyhedron*)shape;
+			poly->~b3Polyhedron();
+			allocator->Free(poly, sizeof(b3Polyhedron));
+			break;
+		}
+		default : {
+			b3Assert(false);
+			break;
+		}
+		}
+	}
+	// Reset list of shapes.
+	m_shapeList = nullptr;
+	m_shapeCount = 0;
+}
+
+void b3Body::SynchronizeTransform() {
+	// Compute the world transform of this body using
+	// the world center of mass and the orientation quaternion.
+	m_orientation.Normalize();
+	m_orientation.ToRotationMatrix(m_transform.rotation);
+	m_transform.translation = m_worldCenter - m_transform.rotation * m_localCenter;
+
+	// Recompute world inverse inertia tensor.
+	m_invWorldInertia = m_transform.rotation * m_invLocalInertia * b3Transpose(m_transform.rotation);
+}
+
+void b3Body::SynchronizeShapes() {
+	// Sweep the shapes attached to this body and compute its new AABBs.
+	for (b3Shape* s = m_shapeList; s; s = s->m_next) {
+		b3AABB aabb;
+		s->ComputeAabb(aabb, m_transform * s->m_local);
+		// Update the proxy AABB with the new (transformed) AABB.
+		m_scene->m_contactGraph.m_broadPhase.UpdateProxy(s->broadPhaseID, aabb);
+	}
+}
+
+void b3Body::ResetMassData() {
+	// Set mass and inertia tensor to zero.
+	m_mass = B3_ZERO;
+	m_invMass = B3_ZERO;
+	m_invLocalInertia.SetZero();
+	m_invWorldInertia.SetZero();
+
+	if (m_type == b3BodyType::e_staticBody) {
+		return;
+	}
+
+	// Compute the local center of mass of this body based on the body shape centroids.
+	b3Vec3 localCenter;
+	b3Mat33 localInertia;
+	for (b3Shape* s = m_shapeList; s; s = s->m_next) {
+		if (s->m_density == B3_ZERO) {
+			continue;
+		}
+		b3MassData massData;
+		s->ComputeMass(&massData, s->m_density);
+		m_mass += massData.mass;
+		localCenter += massData.mass * massData.center;
+		localInertia += massData.I;
+	}
+
+	if (m_mass > B3_ZERO) {
+		m_invMass = B3_ONE / m_mass;
+		localCenter *= m_invMass;
+		m_invLocalInertia = b3Inverse(localInertia);
+		m_invWorldInertia = m_transform.rotation * m_invLocalInertia * b3Transpose(m_transform.rotation);
+	}
+	else {
+		// Dynamic bodies has positive mass.
+		m_mass = B3_ONE;
+		m_invMass = B3_ONE;
+	}
+
+	// Update this body world center of mass position and velocity.
+	m_localCenter = localCenter;
+	b3Vec3 oldWorldCenter = m_worldCenter;
+	m_worldCenter = m_transform * m_localCenter;
+	m_linearVelocity += b3Cross(m_angularVelocity, m_worldCenter - oldWorldCenter);
+}
