@@ -22,7 +22,7 @@ Press LMB in a ray-casted object to apply a force of 10 joules on it;
 
 Press BACKSPACE to exit the application;
 
-<img src="https://irlanengine.files.wordpress.com/2015/07/bounc3.png" alt="Bounce Demo Application" width=512 height=352 align="middle">
+<img src="https://irlanengine.files.wordpress.com/2015/07/bounce-demo.png" alt="Bounce Demo Application" width=512 height=352 align="middle">
 
 Bounce is open-source and released under the <b>zlib</b> license. 
 
