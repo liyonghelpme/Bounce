@@ -14,7 +14,7 @@ Press 1 to launch a polyhedron;
 
 Move the mouse while holding LMB to rotate the camera;
 
-Move the mouse while holding RMB to set the position of the AABB query reference AABB;
+Move the mouse while holding RMB to move the AABB Query reference AABB;
 
 Move the mouse to set the ray-cast ray position;
 
