@@ -95,7 +95,7 @@ inline b3Transform b3MulT(const b3Transform& A, const b3Transform& B) {
 // Multiply the vector v by the transpose of A. Useful for converting
 // the vector from world to local coordinates.
 inline b3Vec3 b3MulT(const b3Transform& A, const b3Vec3& v) {
-	return b3MulT(A.rotation, v) - A.translation;
+	return b3MulT(A.rotation, v - A.translation);
 }
 
 struct b3Plane {
