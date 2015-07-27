@@ -8,21 +8,13 @@ https://irlanengine.files.wordpress.com/2015/07/bounce-doc.pdf
 
 The button description to control Bounce Demo application (bottom image) are:
 
-Press W-S-A-D-Q-E to move the camera;
+Move the camera pressing the arrow keys;
 
-Press 1 to launch a polyhedron;
-
-Move the mouse while holding LMB to rotate the camera;
-
-Move the mouse while holding RMB to move the AABB Query reference AABB;
-
-Move the mouse to set the ray-cast ray position;
-
-Press LMB in a ray-casted object to apply a force of 10 joules on it;
+Move the mouse while holding RMB to rotate the camera;
 
 Press BACKSPACE to exit the application;
 
-<img src="https://irlanengine.files.wordpress.com/2015/07/bounce-demo.png" alt="Bounce Demo Application" width=512 height=352 align="middle">
+<img src="https://irlanengine.files.wordpress.com/2015/07/bounce.png" alt="Bounce Demo Application" width=640 height=480 align="middle">
 
 Bounce is open-source and released under the <b>zlib</b> license. 
 
