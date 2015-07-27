@@ -30,6 +30,6 @@ void main( in OUT_VECS _ovInVecs, out float4 _vOutColor : SV_TARGET ) {
 	vLightDiffuse *= g_euEngineUniforms.vDiffuseMaterial.xyz;
 	vLightSpecular *= g_euEngineUniforms.vSpecularMaterial.xyz;
 	
-	_vOutColor.xyz = vLightDiffuse;
+	_vOutColor.xyz = vLightAmbient + vLightDiffuse + vLightSpecular;
 	_vOutColor.w = g_euEngineUniforms.vDiffuseMaterial.w;
 }
