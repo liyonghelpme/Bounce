@@ -19,7 +19,7 @@ void main( in OUT_VECS _ovInVecs, out float4 _vOutColor : SV_TARGET ) {
 		laLightArgs.vLightSpecular = g_lfLightFulldata.vSpecular[I].xyz;
 		laLightArgs.fLdotN = saturate( dot( vL, vNormalizedViewNormal ) );
 		laLightArgs.fHdotN = saturate( dot( normalize( vL + vNormalizedViewPosToViewer ), vNormalizedViewNormal ) );
-		laLightArgs.fShininess = 0.0f;
+		laLightArgs.fShininess = 25.0f;
 
 		vLightAmbient += g_lfLightFulldata.vAmbient[I].xyz;
 

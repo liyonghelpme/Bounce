@@ -55,3 +55,7 @@ cbuffer CB_ENGINE_UNIFORMS : register( cb0 ) {
 cbuffer CB_LIGHT_FULLDATA : register(cb1) {
 	LIGHT_FULLDATA g_lfLightFulldata;
 };
+
+Texture2D g_t2dDepthMap : register( t0 );
+
+SamplerState g_ssLinearBorder : register( s0 );

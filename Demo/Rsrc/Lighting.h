@@ -8,12 +8,12 @@ struct LIGHT_ARGS {
 };
 
 void BlinnPhongDir( in LIGHT_ARGS _laLightArgs, inout float3 _vDiffuse, inout float3 _vSpecular ) {
-	_vDiffuse += _laLightArgs.vLightDiffuse * _laLightArgs.fLdotN;
-	_vSpecular += _laLightArgs.vLightSpecular * pow( _laLightArgs.fHdotN, _laLightArgs.fShininess );
+	_vDiffuse += _laLightArgs.fLdotN * _laLightArgs.vLightDiffuse;
+	_vSpecular += pow(_laLightArgs.fHdotN, _laLightArgs.fShininess) * _laLightArgs.vLightSpecular;
 }
 
 void BlinnPhongPoint( in LIGHT_ARGS _laLightArgs, inout float3 _vDiffuse, inout float3 _vSpecular ) {
 	_vDiffuse += _laLightArgs.vLightDiffuse * _laLightArgs.fLdotN / _laLightArgs.fDistance;
-	_vSpecular += _laLightArgs.vLightSpecular * 
-	pow( _laLightArgs.fHdotN, _laLightArgs.fShininess ) / _laLightArgs.fDistance;
+	_vSpecular += pow(_laLightArgs.fHdotN, _laLightArgs.fShininess) / _laLightArgs.fDistance * _laLightArgs.vLightSpecular;
+	
 }
