@@ -63,13 +63,20 @@ struct b3Quaternion {
 	// Normalize the quarternion (if needed).
 	b3Quaternion& Normalize() {
 		r32 s = a * a + b * b + c * c + d * d;
-		s = s == B3_ZERO ? B3_ONE : B3_ONE / b3Sqrt(s);
+		if (s == B3_ZERO) {
+			d = B3_ONE;
+		}
+		else {
+			s = B3_ONE / b3Sqrt(s);
+		}
+
 		if (s > B3_EPSILON) {
 			a *= s;
 			b *= s;
 			c *= s;
 			d *= s;
 		}
+
 		return (*this);
 	}
 
