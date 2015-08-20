@@ -78,7 +78,7 @@ struct b3AABB {
 	}
 
 	r32 SurfaceArea() const {
-		return B3_TWO * Width() * Depth() + Width() * Height() + Depth() * Height();
+		return B3_TWO * (Width() * Depth() + Width() * Height() + Depth() * Height());
 	}
 
 	// Test if a point is inside the AABB.
