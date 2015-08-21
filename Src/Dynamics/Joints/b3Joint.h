@@ -71,10 +71,10 @@ public :
 		b3Mat33 RB;
 		RB = b3SkewSymmetric(rB);
 
-		RA = b3Transpose(RA);
-		RB = b3Transpose(RB);
+		b3Mat33 RAT = b3Transpose(RA);
+		b3Mat33 RBT = b3Transpose(RB);
 
-		b3Mat33 K = MI + (RA * bodyA->m_invWorldInertia * RA) + (RB * bodyB->m_invWorldInertia * RB);
+		b3Mat33 K = MI + (RA * bodyA->m_invWorldInertia * RAT) + (RB * bodyB->m_invWorldInertia * RBT);
 		M = b3Inverse(K);
 
 		b3Vec3 distance = worldB - worldA;
