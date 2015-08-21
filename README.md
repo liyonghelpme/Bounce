@@ -1,6 +1,6 @@
 # Bounce
 
-Bounce is a lightweight 3D physics engine for games. 
+Bounce is a lightweight 3D physics engine for games; open-source and released under the <b>zlib</b> license. 
 
 The basic documentation can be reached using the following link:
 
@@ -15,7 +15,5 @@ Move the mouse while holding RMB to rotate the camera;
 Press BACKSPACE to exit the application;
 
 <img src="https://irlanengine.files.wordpress.com/2015/08/bounce-demo.png" alt="Bounce Demo Application" width=640 height=480 align="middle">
-
-Bounce is open-source and released under the <b>zlib</b> license. 
 
 Irlan Robson  https://irlanengine.wordpress.com
