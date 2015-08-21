@@ -18,6 +18,4 @@ Press BACKSPACE to exit the application;
 
 Bounce is open-source and released under the <b>zlib</b> license. 
 
-Irlan Robson
-
-irlanengine.wordpress.com
+Irlan Robson  https://irlanengine.wordpress.com
