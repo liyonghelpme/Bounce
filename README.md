@@ -1,19 +1,21 @@
 # Bounce
 
-Bounce is a lightweight 3D physics engine for games; open-source and released under the <b>zlib</b> license. 
+Bounce is a lightweight, fast, and open-source 3D physics engine for games. 
+
+Bounce is released under the <b>zlib</b> license. 
 
 The basic documentation can be reached using the following link:
 
 https://irlanengine.files.wordpress.com/2015/07/bounce-doc.pdf
 
-The button description to control Bounce Demo application (bottom image) are:
+The button description to control Bounce Testbed (image below) are:
 
-Move the camera pressing the arrow keys;
+Rotate the camera holding ALT + RMB (as in Maya);
 
-Move the mouse while holding RMB to rotate the camera;
+Press RMB to insert a object into the scene;
 
-Press BACKSPACE to exit the application;
+Press ESC to exit the application;
 
-<img src="https://irlanengine.files.wordpress.com/2015/08/bounce-demo.png" alt="Bounce Demo Application" width=640 height=480 align="middle">
+<img src="https://irlanengine.files.wordpress.com/2015/08/screenshot-of-bounce.png" alt="Bounce Demo Application" width=640 height=480 align="middle">
 
-Irlan Robson  https://irlanengine.wordpress.com
+Irlan Robson https://irlanengine.wordpress.com
