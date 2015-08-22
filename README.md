@@ -10,9 +10,9 @@ https://irlanengine.files.wordpress.com/2015/07/bounce-doc.pdf
 
 The button description to control Bounce Testbed (image below) are:
 
-Rotate the camera holding ALT + RMB (as in Maya);
+Rotate the camera holding ALT + LMB (as in Maya);
 
-Press RMB to insert a object into the scene;
+Press RMB to throw an object into the scene;
 
 Press ESC to exit the application;
 
