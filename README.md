@@ -1,6 +1,6 @@
 # Bounce
 
-<h3>Introduction</h3>
+<h3>Abstract</h3>
 
 Bounce is a lightweight, fast, and open-source 3D physics engine for games. 
 
