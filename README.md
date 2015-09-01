@@ -18,7 +18,7 @@ Camera Controls (as in Maya):
 
 Rotate the camera holding ALT + LMB;
 
-Rotate the camera holding ALT + RMB;
+Translate the camera holding ALT + RMB;
 
 Zoom in/out the camera using ALT + Mouse Wheel;
 
