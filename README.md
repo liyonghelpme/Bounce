@@ -2,13 +2,11 @@
 
 <h3>Abstract</h3>
 
-Bounce is a lightweight, fast, and open-source 3D physics engine for games; it simulates rigid bodies and supports general convex polyhedras.
+Bounce is a lightweight, fast, and open-source 3D physics engine for games. It simulates rigid bodies and supports general convex polyhedras.
 
-Bounce is released under the <b>zlib</b> license. 
+<h3>Instructions</h3>
 
-<h3>Documentation</h3>
-
-The basic documentation can be reached using the following link:
+The basic instructions can be reached using the following link:
 
 https://irlans.files.wordpress.com/2015/07/bounce-doc.pdf
 
@@ -37,5 +35,7 @@ Before running the Bounce Testbed please make sure that you have the Visual C++ 
 <img src="https://irlans.files.wordpress.com/2015/09/bounce-2.png" alt="Bounce Demo Application" width=640 height=480 align="middle">
 
 <h3>Credits</h3>
+
+Bounce is released under the <b>zlib</b> license. 
 
 Irlan Robson https://irlans.wordpress.com
