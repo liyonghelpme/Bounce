@@ -1,2 +1,2 @@
-Color Rsrc\ColorVs.hlsl Rsrc\ColorPs.hlsl
-Debug Rsrc\ColorVs.hlsl Rsrc\DebugPs.hlsl
+Color Rsrc\ColorVs.cso Rsrc\ColorPs.cso
+Debug Rsrc\ColorVs.cso Rsrc\DebugPs.cso
