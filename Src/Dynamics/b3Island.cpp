@@ -1,27 +1,25 @@
 /*
-******************************************************************************
-   Copyright (c) 2015 Irlan Robson http://www.irlanengine.wordpress.com
-
-   This software is provided 'as-is', without any express or implied
-   warranty. In no event will the authors be held liable for any damages
-   arising from the use of this software.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-	 claim that you wrote the original software. If you use this software
-	 in a product, an acknowledgment in the product documentation would be
-	 appreciated but is not required.
-   2. Altered source versions must be plainly marked as such, and must not
-	 be misrepresented as being the original software.
-   3. This notice may not be removed or altered from any source distribution.
-*******************************************************************************
+* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
 */
 
 #include "b3Island.h"
 #include "b3Body.h"
+#include "Joints\b3Joint.h"
+#include "Joints\b3JointSolver.h"
 #include "Contacts\b3Contact.h"
 #include "Contacts\b3ContactSolver.h"
 #include "..\Common\Memory\b3StackAllocator.h"
@@ -34,18 +32,22 @@ b3Island::b3Island(const b3IslandDef& def) {
 	velocityIterations = def.velocityIterations;
 	bodyCapacity = def.bodyCapacity;
 	contactCapacity = def.contactCapacity;
+	jointCapacity = def.jointCapacity;
 
 	bodies = (b3Body**)allocator->Allocate(bodyCapacity * sizeof(b3Body*));
 	velocities = (b3Velocity*)allocator->Allocate(bodyCapacity * sizeof(b3Velocity));
 	positions = (b3Position*)allocator->Allocate(bodyCapacity * sizeof(b3Position));
-	contacts = (b3Contact**)allocator->Allocate(contactCapacity * sizeof(b3Contact*) );
+	contacts = (b3Contact**)allocator->Allocate(contactCapacity * sizeof(b3Contact*));
+	joints = (b3Joint**)allocator->Allocate(jointCapacity * sizeof(b3Joint*));
 
 	bodyCount = 0;
 	contactCount = 0;
+	jointCount = 0;
 }
 
 b3Island::~b3Island() {
 	// @note Reverse order of construction.
+	allocator->Free(joints);
 	allocator->Free(contacts);
 	allocator->Free(positions);
 	allocator->Free(velocities);
@@ -55,6 +57,7 @@ b3Island::~b3Island() {
 void b3Island::Reset() {
 	bodyCount = 0;
 	contactCount = 0;
+	jointCount = 0;
 }
 
 void b3Island::Add(b3Body* b) {
@@ -68,6 +71,12 @@ void b3Island::Add(b3Contact* c) {
 	b3Assert(contactCount < contactCapacity);
 	contacts[contactCount] = c;
 	++contactCount;
+}
+
+void b3Island::Add(b3Joint* j) {
+	b3Assert(jointCount < jointCapacity);
+	joints[jointCount] = j;
+	++jointCount;
 }
 
 void b3Island::Solve(const b3Vec3& gravityDir) {
@@ -87,7 +96,7 @@ void b3Island::Solve(const b3Vec3& gravityDir) {
 			// Use semi-implitic Euler.
 			v += h * b->m_invMass * (b->m_gravityScale * gravityForce + b->m_force);
 			w += h * (b->m_invWorldInertia * b->m_torque);
-		
+
 			// References: Box2D.
 			// Apply damping.
 			// ODE: dv/dt + c * v = 0
@@ -96,8 +105,8 @@ void b3Island::Solve(const b3Vec3& gravityDir) {
 			// v2 = exp(-c * dt) * v1
 			// Pade approximation:
 			// v2 = v1 * 1 / (1 + c * dt)
-			v *= B3_ONE / ( B3_ONE + h * r32(0.1) );
-			w *= B3_ONE / ( B3_ONE + h * r32(0.1) );
+			v *= B3_ONE / (B3_ONE + h * r32(0.1));
+			w *= B3_ONE / (B3_ONE + h * r32(0.1));
 		}
 
 		velocities[i].v = v;
@@ -107,19 +116,38 @@ void b3Island::Solve(const b3Vec3& gravityDir) {
 	}
 
 	b3ContactSolverDef contactSolverDef;
-	contactSolverDef.allocator = allocator;
 	contactSolverDef.dt = h;
-	contactSolverDef.positions = positions;
-	contactSolverDef.velocities = velocities;
 	contactSolverDef.contacts = contacts;
 	contactSolverDef.count = contactCount;
+	contactSolverDef.positions = positions;
+	contactSolverDef.velocities = velocities;
+	contactSolverDef.allocator = allocator;
 
 	b3ContactSolver contactSolver(&contactSolverDef);
 	contactSolver.InitializeVelocityConstraints();
 	contactSolver.WarmStart();
+
+	b3JointSolverDef jointSolverDef;
+	jointSolverDef.dt = h;
+	jointSolverDef.joints = joints;
+	jointSolverDef.count = jointCount;
+	jointSolverDef.positions = positions;
+	jointSolverDef.velocities = velocities;
+
+	b3JointSolver jointSolver(&jointSolverDef);
+	jointSolver.InitializeVelocityConstraints();
+	jointSolver.WarmStart();
+
+	// Solve joint velocity constraints.
+	for (u32 i = 0; i < velocityIterations; ++i) {
+		jointSolver.SolveVelocityConstraints();
+	}
+
+	// Solve contact velocity constraints.
 	for (u32 i = 0; i < velocityIterations; ++i) {
 		contactSolver.SolveVelocityConstraints();
 	}
+
 	contactSolver.StoreImpulses();
 
 	for (u32 i = 0; i < bodyCount; ++i) {
@@ -132,12 +160,12 @@ void b3Island::Solve(const b3Vec3& gravityDir) {
 		b3Quaternion q = positions[i].q;
 		b3Vec3 v = velocities[i].v;
 		b3Vec3 w = velocities[i].w;
-		
+
 		b3Quaternion dqdt = B3_HALF * b3Quaternion(w.x, w.y, w.z, B3_ZERO) * q;
 
 		x += h * v;
 		q += h * dqdt;
-		
+
 		positions[i].x = x;
 		positions[i].q = q;
 		velocities[i].v = v;
@@ -156,7 +184,7 @@ void b3Island::Solve(const b3Vec3& gravityDir) {
 		b->m_angularVelocity = velocities[i].w;
 	}
 
-	if (allowSleep) {		
+	if (allowSleep) {
 		r32 minSleepTime = B3_MAX_FLOAT;
 		for (u32 i = 0; i < bodyCount; ++i) {
 			b3Body* b = bodies[i];
@@ -166,9 +194,9 @@ void b3Island::Solve(const b3Vec3& gravityDir) {
 
 			// Compute the linear and angular speed of the body.
 			const r32 sqrLinVel = b3LenSq(b->m_linearVelocity);
-			const r32 cbAngVel = b3LenSq(b->m_angularVelocity);
-			
-			if (sqrLinVel > B3_SLEEP_LINEAR_TOL || cbAngVel > B3_SLEEP_ANGULAR_TOL) {
+			const r32 sqrAngVel = b3LenSq(b->m_angularVelocity);
+
+			if (sqrLinVel > B3_SLEEP_LINEAR_TOL || sqrAngVel > B3_SLEEP_ANGULAR_TOL) {
 				minSleepTime = B3_ZERO;
 				b->m_sleepTime = B3_ZERO;
 			}

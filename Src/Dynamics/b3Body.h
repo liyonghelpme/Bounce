@@ -1,23 +1,19 @@
 /*
-******************************************************************************
-   Copyright (c) 2015 Irlan Robson http://www.irlanengine.wordpress.com
-
-   This software is provided 'as-is', without any express or implied
-   warranty. In no event will the authors be held liable for any damages
-   arising from the use of this software.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-	 claim that you wrote the original software. If you use this software
-	 in a product, an acknowledgment in the product documentation would be
-	 appreciated but is not required.
-   2. Altered source versions must be plainly marked as such, and must not
-	 be misrepresented as being the original software.
-   3. This notice may not be removed or altered from any source distribution.
-*******************************************************************************
+* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
 */
 
 #ifndef __B3_BODY_H__
@@ -30,6 +26,7 @@ class b3Scene;
 class b3Shape;
 struct b3ShapeDef;
 struct b3ContactEdge;
+struct b3JointEdge;
 
 // Static bodies have zero mass and velocity, and therefore they can't move.
 // Dynamic bodies have non-zero mass and can move due to internal and external forces.
@@ -76,13 +73,16 @@ public :
 	// Remove a shape from the body and deallocated it from the memory.
 	void DestroyShape(b3Shape* shape);
 	
+	// Remove all contacts associated with the body.
+	void DestroyContacts();
+
+	// Remove all joints connected to the body.
+	void DestroyJoints();
+
 	// Remove all shapes associated with the body.
 	// Remove this if you want to recycle the body, but (physically) doesn't make
 	// any sense a bodies without a shape.
 	void DestroyShapes();
-
-	// Remove all contacts associated with the body.
-	void DestroyContacts();
 
 	// Get the shapes associated with the body.
 	const b3Shape* GetShapeList() const;
@@ -158,14 +158,21 @@ public :
 	// Set the angular velocity of the body. If is a non-zero velocity then the body awakes.
 	// The body must be dynamic or kinematic.
 	void SetAngularVelocity(const b3Vec3& angularVelocity);
-protected :
+//protected :
 	friend class b3Scene;
-	friend class b3ContactGraph;
-	friend class b3Contact;
-	friend class b3Joint;
 	friend class b3Island;
-	friend class b3ContactSolver;
 
+	friend class b3Contact;
+	friend class b3ContactGraph;
+	friend class b3ContactSolver;
+	
+	friend class b3Joint;
+	friend class b3JointGraph;
+	friend class b3JointSolver;
+	friend class b3MouseJoint;
+	friend class b3SphericalJoint;
+	friend class b3RevoluteJoint;
+	
 	enum b3BodyFlags {
 		e_awakeFlag = 0x0001,
 		e_islandFlag = 0x0002
@@ -197,6 +204,9 @@ protected :
 
 	// The body holds a list of neighbour contacts.
 	b3ContactEdge* m_contactList;
+
+	// The body holds a list of neighbour contacts.
+	b3JointEdge* m_jointList;
 
 	// The shapes attached to this body.
 	b3Shape* m_shapeList;

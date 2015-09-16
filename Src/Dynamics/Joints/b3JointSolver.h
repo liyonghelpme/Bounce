@@ -16,37 +16,47 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifndef __B3_CONTACT_GRAPH_H__
-#define __B3_CONTACT_GRAPH_H__
+#ifndef B3_JOINT_SOLVER_H
+#define B3_JOINT_SOLVER_H
 
-#include "..\..\Collision\b3BroadPhase.h"
+#include "b3Joint.h"
+#include "..\..\Common\b3Time.h"
 
-class b3BlockAllocator;
-class b3Contact;
-class b3ContactListener;
+struct b3Position;
+struct b3Velocity;
 
-class b3ContactGraph {
+struct b3JointVelocityConstraint {
+	r32 imA;
+	r32 imB;
+	b3Mat33 iA;
+	b3Mat33 iB;
+	u32 indexA;
+	u32 indexB;
+};
+
+struct b3JointSolverDef {
+	r32 dt;
+	b3Joint** joints;
+	u32 count;
+	b3Position* positions;
+	b3Velocity* velocities;
+};
+// This solver Baumgarte method for constraint stabilization.
+// It is rapidly executed, but it takes some time to completely solve a constraint.
+// Each joint computes its own solver data due to the diversity of the 
+// joint constraints.
+
+class b3JointSolver {
 public :
-	b3ContactGraph();
+	b3JointSolver(const b3JointSolverDef* def);
 
-	// The broad-phase will notify us if ther is a potential shape pair shapes colliding.
-	void AddPair(void* data1, void* data2);
-	// The broad-phase will contact us if ther is a potential shape pair shapes colliding.
-	void DestroyContact(b3Contact* c);
-	
-	// Get the potential colliding shape pairs (broad-phase).
-	void FindNewContacts();
-	// Get the actual colliding shapes (narrow-phase).
-	void UpdateContacts();
+	void InitializeVelocityConstraints();
+	void WarmStart();
+	void SolveVelocityConstraints();
 protected :
-	friend class b3Scene;
-	friend class b3Body;
-
-	b3BlockAllocator* m_blockAllocator;
-	b3BroadPhase m_broadPhase;
-	b3Contact* m_contactList;
-	u32 m_contactCount;
-	b3ContactListener* m_contactListener;
+	b3SolverData m_solverData;
+	b3Joint** m_joints;
+	u32 m_count;
 };
 
 #endif

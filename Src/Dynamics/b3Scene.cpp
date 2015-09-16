@@ -1,23 +1,19 @@
 /*
-******************************************************************************
-   Copyright (c) 2015 Irlan Robson http://www.irlanengine.wordpress.com
-
-   This software is provided 'as-is', without any express or implied
-   warranty. In no event will the authors be held liable for any damages
-   arising from the use of this software.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-	 claim that you wrote the original software. If you use this software
-	 in a product, an acknowledgment in the product documentation would be
-	 appreciated but is not required.
-   2. Altered source versions must be plainly marked as such, and must not
-	 be misrepresented as being the original software.
-   3. This notice may not be removed or altered from any source distribution.
-*******************************************************************************
+* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
 */
 
 #include "b3Scene.h"
@@ -25,11 +21,13 @@
 #include "b3Island.h"
 #include "b3SceneListeners.h"
 #include "Contacts\b3Contact.h"
+#include "Joints\b3Joint.h"
 #include "..\Collision\Shapes\b3Shape.h"
 #include "..\Common\b3Draw.h"
 
 b3Scene::b3Scene() {
 	m_contactGraph.m_blockAllocator = &m_blockAllocator;
+	m_jointGraph.m_blockAllocator = &m_blockAllocator;
 	m_flags = 0;
 	m_bodyList = nullptr;
 	m_bodyCount = 0;
@@ -47,6 +45,7 @@ b3Scene::~b3Scene() {
 	b3Body* b = m_bodyList;
 	while (b) {
 		b->DestroyShapes();
+		b->DestroyJoints();
 		b = b->m_next;
 	}
 }
@@ -72,10 +71,9 @@ b3Body* b3Scene::CreateBody(const b3BodyDef& def) {
 void b3Scene::DestroyBody(b3Body* b) {
 	b3Assert(m_bodyCount > 0);
 
-	// Remove the contacts from the body.
+	// Remove the contacts, joints, and shapes from the body.
 	b->DestroyContacts();
-
-	// Remove the shapes from the body.
+	b->DestroyJoints();
 	b->DestroyShapes();
 
 	// Remove from the world's body list.
@@ -96,26 +94,41 @@ void b3Scene::DestroyBody(b3Body* b) {
 	m_blockAllocator.Free(b, sizeof(b3Body));
 }
 
+b3Joint* b3Scene::CreateJoint(const b3JointDef& def) {
+	return m_jointGraph.CreateJoint(&def);
+}
+
+void b3Scene::DestroyJoint(b3Joint* joint) {
+	m_jointGraph.DestroyJoint(joint);
+}
+
 void b3Scene::Solve(const b3TimeStep& step) {
 	// Clear all the island flags for the current step.
 	for (b3Body* b = m_bodyList; b; b = b->m_next) {
 		b->m_flags &= ~b3Body::e_islandFlag;
 	}
+	
 	for (b3Contact* c = m_contactGraph.m_contactList; c; c = c->m_next) {
 		c->m_flags &= ~b3Contact::e_islandFlag;
 	}
+	
+	for (b3Joint* j = m_jointGraph.m_jointList; j; j = j->m_next) {
+		j->m_onIsland = false;
+	}
 
+	// Build and simulate awake islands.
+	
 	b3IslandDef islandDef;
 	islandDef.dt = step.dt;
 	islandDef.allowSleep = step.sleeping;
 	islandDef.allocator = &m_stackAllocator;
 	islandDef.bodyCapacity = m_bodyCount;
 	islandDef.contactCapacity = m_contactGraph.m_contactCount;
+	islandDef.jointCapacity = m_jointGraph.m_jointCount;
 	islandDef.velocityIterations = step.velocityIterations;
 
 	b3Island island(islandDef);
 
-	// Build and simulate awake islands.
 	u32 stackSize = m_bodyCount;
 	b3Body** stack = (b3Body**)m_stackAllocator.Allocate(stackSize * sizeof(b3Body*));
 	for (b3Body* seed = m_bodyList; seed; seed = seed->m_next) {
@@ -157,7 +170,7 @@ void b3Scene::Solve(const b3TimeStep& step) {
 			for (b3ContactEdge* ce = b->m_contactList; ce; ce = ce->next) {
 				b3Contact* contact = ce->contact;
 
-				// Skip the body if is already on the island.
+				// Skip the contact if is already on the island.
 				if (contact->m_flags & b3Contact::e_islandFlag) {
 					continue;
 				}
@@ -179,6 +192,32 @@ void b3Scene::Solve(const b3TimeStep& step) {
 				contact->m_flags |= b3Contact::e_islandFlag;
 
 				b3Body* other = ce->other;
+
+				// Skip next propagation if the other body is already on the island.
+				if (other->m_flags & b3Body::e_islandFlag) {
+					continue;
+				}
+
+				// Push the other body onto the stack and mark it.
+				b3Assert(stackCount < stackSize);
+				stack[stackCount++] = other;
+				other->m_flags |= b3Body::e_islandFlag;
+			}
+
+			// Get all joints connected with the body.
+			for (b3JointEdge* je = b->m_jointList; je; je = je->next) {
+				b3Joint* joint = je->joint;
+
+				// Skip the joint is already on the island.
+				if (joint->m_onIsland) {
+					continue;
+				}
+
+				// Add joint to the island and flag it.
+				island.Add(joint);
+				joint->m_onIsland = true;
+
+				b3Body* other = je->other;
 
 				// Skip next propagation if the other body is already on the island.
 				if (other->m_flags & b3Body::e_islandFlag) {
@@ -222,7 +261,7 @@ void b3Scene::Solve(const b3TimeStep& step) {
 
 		m_contactGraph.FindNewContacts();
 		time.Update();
-		m_profile.broadPhaseTime = time.GetDeltaSecs();
+		m_profile.broadPhaseTime = time.GetDeltaMilisecs();
 	}
 }
 
@@ -247,14 +286,14 @@ void b3Scene::Step(const b3TimeStep& step) {
 		// Update contact constraints. Destroy ones if they aren't intersecting.
 		m_contactGraph.UpdateContacts();
 		time.Update();
-		m_profile.narrowPhaseTime = time.GetDeltaSecs();
+		m_profile.narrowPhaseTime = time.GetDeltaMilisecs();
 	}
 	{
 		b3Time time;
 		// Solve system's EDOs and MLCPs.
 		Solve(step);
 		time.Update();
-		m_profile.solverTime = time.GetDeltaSecs();
+		m_profile.solverTime = time.GetDeltaMilisecs();
 	}
 	
 	if (m_flags & e_clearForcesFlag) {
@@ -262,7 +301,7 @@ void b3Scene::Step(const b3TimeStep& step) {
 	}
 
 	stepTime.Update();
-	m_profile.totalTime = stepTime.GetDeltaSecs();
+	m_profile.totalTime = stepTime.GetDeltaMilisecs();
 }
 
 struct b3QueryCallback {
@@ -324,8 +363,7 @@ void b3Scene::Draw(const b3Draw* draw, u32 flags) const {
 
 	if (flags & b3Draw::e_centerOfMassesFlag) {
 		for (const b3Body* b = 0; b; b = b->GetNext()) {
-			b3Color color;
-			color.G = 1.0f;
+			b3Color color(0.0f, 1.0f, 0.0f);
 
 			const b3Transform& transform = b->GetTransform();
 
@@ -339,11 +377,8 @@ void b3Scene::Draw(const b3Draw* draw, u32 flags) const {
 	}
 
 	if (flags & b3Draw::e_broadPhaseFlag) {
-		b3Color color1;
-		color1.G = 1.0f;
-		
-		b3Color color2;
-		color2.R = 1.0f;
+		b3Color color1(0.0f, 1.0f, 0.0f);
+		b3Color color2(1.0f, 0.0f, 0.0f);
 
 		const b3DynamicAABBTree* tree = &m_contactGraph.m_broadPhase.m_dynamicAabbTree;
 
@@ -374,21 +409,17 @@ void b3Scene::Draw(const b3Draw* draw, u32 flags) const {
 	if (flags & b3Draw::e_contactsFlag) {
 		for (const b3Contact* c = m_contactGraph.m_contactList; c; c = c->m_next) {
 			const b3Manifold* m = &c->m_manifold;
-			
-			b3Color color1;
-			color1.R = 1.0f;
-			color1.G = 1.0f;
 
-			b3Color color2;
-			color2.R = 1.0f;
+			b3Color color1(0.0f, 1.0f, 0.0f);
+			b3Color color2(1.0f, 0.0f, 0.0f);
 
 			for (u32 i = 0; i < m->pointCount; ++i) {
 				const b3ContactPoint* p = &m->points[i];
 
-				draw->DrawPoint(p->position, color2);
-				draw->DrawPoint(p->position + m->normal, color1);
-				draw->DrawPoint(p->position + p->tangents[0], color1);
-				draw->DrawPoint(p->position + p->tangents[1], color1);
+				draw->DrawPoint(p->position, p->warmStarted ? color1 : color2);
+				draw->DrawLine(p->position, p->position + m->normal, color1);
+				draw->DrawLine(p->position, p->position + p->tangents[0], color1);
+				draw->DrawLine(p->position, p->position + p->tangents[1], color1);
 			}
 		}
 

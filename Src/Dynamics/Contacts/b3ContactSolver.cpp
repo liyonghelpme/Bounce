@@ -1,23 +1,19 @@
 /*
-******************************************************************************
-   Copyright (c) 2015 Irlan Robson http://www.irlanengine.wordpress.com
-
-   This software is provided 'as-is', without any express or implied
-   warranty. In no event will the authors be held liable for any damages
-   arising from the use of this software.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-	 claim that you wrote the original software. If you use this software
-	 in a product, an acknowledgment in the product documentation would be
-	 appreciated but is not required.
-   2. Altered source versions must be plainly marked as such, and must not
-	 be misrepresented as being the original software.
-   3. This notice may not be removed or altered from any source distribution.
-*******************************************************************************
+* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
 */
 
 #include "b3ContactSolver.h"
@@ -25,6 +21,7 @@
 #include "..\..\Collision\Shapes\b3Shape.h"
 #include "..\..\Dynamics\b3Body.h"
 #include "..\..\Common\Memory\b3StackAllocator.h"
+#include "..\..\Common\b3Time.h"
 
 b3ContactSolver::b3ContactSolver(const b3ContactSolverDef* def) {
 	m_allocator = def->allocator;
@@ -92,12 +89,12 @@ void b3ContactSolver::InitializeVelocityConstraints() {
 		b3Vec3 vA = m_velocities[indexA].v;
 		b3Vec3 wA = m_velocities[indexA].w;
 		b3Vec3 xA = m_positions[indexA].x;
-		b3Quaternion qA = m_positions[indexA].q;
+		//b3Quaternion qA = m_positions[indexA].q;
 
 		b3Vec3 vB = m_velocities[indexB].v;
 		b3Vec3 wB = m_velocities[indexB].w;
 		b3Vec3 xB = m_positions[indexB].x;
-		b3Quaternion qB = m_positions[indexB].q;
+		//b3Quaternion qB = m_positions[indexB].q;
 
 		for (u32 j = 0; j < pointCount; ++j) {
 			b3ContactPoint* cp = c->m_manifold.points + j;
@@ -126,7 +123,8 @@ void b3ContactSolver::InitializeVelocityConstraints() {
 			r32 kNormal = mA + mB + b3Dot(rnA, iA * rnA) + b3Dot(rnB, iB * rnB);
 			vcp->normalMass = B3_ONE / kNormal;
 
-			vcp->velocityBias = -B3_BAUMGARTE * m_invDt * b3Min(B3_ZERO, c->m_manifold.distances[j] + B3_SLOP);
+			r32 C = b3Min(B3_ZERO, c->m_manifold.distances[j] + B3_LINEAR_SLOP);
+			vcp->velocityBias = -m_invDt * B3_BAUMGARTE * C;
 
 			// Add restitution in the velocity constraint.			
 			r32 vn = b3Dot(vB + b3Cross(wB, vcp->rB) - vA - b3Cross(wA, vcp->rA), vc->normal);
@@ -157,12 +155,24 @@ void b3ContactSolver::WarmStart() {
 		b3Vec3 wB = m_velocities[indexB].w;
 
 		for (u32 j = 0; j < pointCount; ++j) {
+			// Project old solutions into the new transposed Jacobians.
 			b3VelocityConstraintPoint* vcp = vc->points + j;
-			b3Vec3 P = vcp->normalImpulse * normal + vcp->tangentImpulse[0] * vcp->tangents[0] + vcp->tangentImpulse[1] * vcp->tangents[1];
-			vA -= mA * P;
-			wA -= iA * b3Cross(vcp->rA, P);
-			vB += mB * P;
-			wB += iB * b3Cross(vcp->rB, P);
+
+			r32 lastNormalLambda = vcp->normalImpulse;
+			r32 lastTangentLambda1 = vcp->tangentImpulse[0];
+			r32 lastTangentLambda2 = vcp->tangentImpulse[1];
+
+			b3Vec3 normalImpulse = lastNormalLambda * normal;
+			b3Vec3 tangentImpulse1 = lastTangentLambda1 * vcp->tangents[0];
+			b3Vec3 tangentImpulse2 = lastTangentLambda2 * vcp->tangents[1];
+
+			b3Vec3 impulse = normalImpulse + tangentImpulse1 + tangentImpulse2;
+			
+			vA -= mA * impulse;
+			wA -= iA * b3Cross(vcp->rA, impulse);
+			
+			vB += mB * impulse;
+			wB += iB * b3Cross(vcp->rB, impulse);
 		}
 
 		m_velocities[indexA].v = vA;
@@ -192,47 +202,50 @@ void b3ContactSolver::SolveVelocityConstraints() {
 
 		for (u32 j = 0; j < pointCount; ++j) {
 			b3VelocityConstraintPoint* vcp = vc->points + j;
-
-			// Relative velocity at contact.
 			{
+				// Compute J * u.
 				b3Vec3 dv = vB + b3Cross(wB, vcp->rB) - vA - b3Cross(wA, vcp->rA);
+				r32 dCdt = b3Dot(dv, normal);
 
-				// Compute normal impulse.
-				r32 vn = b3Dot(dv, normal);
-				r32 lambda = vcp->normalMass * (-vn + vcp->velocityBias);
+				// Compute new lambda values.
+				r32 lambda = vcp->normalMass * (-dCdt + vcp->velocityBias);				
+				r32 newLambda = b3Max(vcp->normalImpulse + lambda, B3_ZERO);
+				r32 deltaLambda = newLambda - vcp->normalImpulse;
 				
-				r32 newImpulse = b3Max(vcp->normalImpulse + lambda, B3_ZERO);
-				lambda = newImpulse - vcp->normalImpulse;
-				vcp->normalImpulse = newImpulse;
+				vcp->normalImpulse = newLambda;
 
-				b3Vec3 P = lambda * normal;
+				b3Vec3 deltaImpulse = deltaLambda * normal;
 
-				vA -= mA * P;
-				wA -= iA * b3Cross(vcp->rA, P);
+				vA -= mA * deltaImpulse;
+				wA -= iA * b3Cross(vcp->rA, deltaImpulse);
 
-				vB += mB * P;
-				wB += iB * b3Cross(vcp->rB, P);
+				vB += mB * deltaImpulse;
+				wB += iB * b3Cross(vcp->rB, deltaImpulse);
 			}
 
 			for (u32 k = 0; k < 2; ++k) {
-				b3Vec3 dv = vB + b3Cross(wB, vcp->rB) - vA - b3Cross(wA, vcp->rA);
-
 				// Compute tangential impulse.
-				r32 vt = b3Dot(dv, vcp->tangents[k]);
-				r32 lambda = vcp->tangentMass[k] * -vt;
+				r32 hi = vc->friction * vcp->normalImpulse;
+				r32 lo = -hi;
 
-				r32 maxFriction = vc->friction * vcp->normalImpulse;
-				r32 newImpulse = b3Clamp(vcp->tangentImpulse[k] + lambda, -maxFriction, maxFriction);
-				lambda = newImpulse - vcp->tangentImpulse[k];
-				vcp->tangentImpulse[k] = newImpulse;
+				// Compute J * u.
+				b3Vec3 dv = vB + b3Cross(wB, vcp->rB) - vA - b3Cross(wA, vcp->rA);
+				r32 dCdt = b3Dot(dv, vcp->tangents[k]);
 
-				b3Vec3 P = lambda * vcp->tangents[k];
+				// Compute new lambda values.
+				r32 lambda = vcp->tangentMass[k] * -dCdt;
+				r32 newLambda = b3Clamp(vcp->tangentImpulse[k] + lambda, lo, hi);
+				r32 deltaLambda = newLambda - vcp->tangentImpulse[k];
+				
+				vcp->tangentImpulse[k] = newLambda;
 
-				vA -= mA * P;
-				wA -= iA * b3Cross(vcp->rA, P);
+				b3Vec3 deltaImpulse = deltaLambda * vcp->tangents[k];
 
-				vB += mB * P;
-				wB += iB * b3Cross(vcp->rB, P);
+				vA -= mA * deltaImpulse;
+				wA -= iA * b3Cross(vcp->rA, deltaImpulse);
+
+				vB += mB * deltaImpulse;
+				wB += iB * b3Cross(vcp->rB, deltaImpulse);
 			}
 		}
 

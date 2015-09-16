@@ -16,37 +16,42 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifndef __B3_CONTACT_GRAPH_H__
-#define __B3_CONTACT_GRAPH_H__
+#ifndef __B3_JOINT_GRAPH_H__
+#define __B3_JOINT_GRAPH_H__
 
-#include "..\..\Collision\b3BroadPhase.h"
+#include "..\..\Common\b3Settings.h"
 
+struct b3JointDef;
+class b3Joint;
 class b3BlockAllocator;
-class b3Contact;
-class b3ContactListener;
 
-class b3ContactGraph {
+// The joint graph structure.
+// Keep it separated from the scene because
+// is more easy to debug. 
+class b3JointGraph {
 public :
-	b3ContactGraph();
+	b3JointGraph();
 
-	// The broad-phase will notify us if ther is a potential shape pair shapes colliding.
-	void AddPair(void* data1, void* data2);
-	// The broad-phase will contact us if ther is a potential shape pair shapes colliding.
-	void DestroyContact(b3Contact* c);
+	// Allocate a joint on the heap and add it to the graph.
+	// The user must cast to the specific class.
+	b3Joint* CreateJoint(const b3JointDef* def);
 	
-	// Get the potential colliding shape pairs (broad-phase).
-	void FindNewContacts();
-	// Get the actual colliding shapes (narrow-phase).
-	void UpdateContacts();
+	// Remove the given joint from the graph and
+	// deallocate it from the heap.
+	void DestroyJoint(b3Joint* j);
 protected :
 	friend class b3Scene;
 	friend class b3Body;
 
-	b3BlockAllocator* m_blockAllocator;
-	b3BroadPhase m_broadPhase;
-	b3Contact* m_contactList;
-	u32 m_contactCount;
-	b3ContactListener* m_contactListener;
+	// Request a joint from the heap.
+	b3Joint* AllocateJoint(const b3JointDef* def) const;
+	
+	// Deallocate a joint from the heap.
+	void FreeJoint(b3Joint* j) const;
+
+	b3Joint* m_jointList;
+	u32 m_jointCount;
+	mutable b3BlockAllocator* m_blockAllocator;
 };
 
 #endif

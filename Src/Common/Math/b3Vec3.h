@@ -1,23 +1,19 @@
 /*
-******************************************************************************
-   Copyright (c) 2015 Irlan Robson http://www.irlanengine.wordpress.com
-
-   This software is provided 'as-is', without any express or implied
-   warranty. In no event will the authors be held liable for any damages
-   arising from the use of this software.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-	 claim that you wrote the original software. If you use this software
-	 in a product, an acknowledgment in the product documentation would be
-	 appreciated but is not required.
-   2. Altered source versions must be plainly marked as such, and must not
-	 be misrepresented as being the original software.
-   3. This notice may not be removed or altered from any source distribution.
-*******************************************************************************
+* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
 */
 
 #ifndef __B3_VEC3_H__
@@ -108,11 +104,6 @@ inline b3Vec3 operator*(r32 s, const b3Vec3& v) {
 	return b3Vec3(s * v.x, s * v.y, s * v.z);
 }
 
-// Compute the product of twi vectors.
-inline b3Vec3 operator*(const b3Vec3& a, const b3Vec3& b) {
-	return b3Vec3(a.x * b.x, a.y * b.y, a.z * b.z);
-}
-
 // Compute the length of a vector.
 inline r32 b3Len(const b3Vec3& v) {
 	return b3Sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
@@ -142,7 +133,7 @@ inline b3Vec3 b3Normalize(const b3Vec3& v) {
 
 // Create a basis matrix given a vector.
 inline void b3ComputeBasis(const b3Vec3& a, b3Vec3* b, b3Vec3* c) {
-	// References: Box2D.
+	// From Box2D.
 	// Suppose vector a has all equal components and is a unit vector: a = (s, s, s)
 	// Then 3*s*s = 1, s = sqrt(1/3) = 0.57735. This means that at least one component of a
 	// unit vector must be greater or equal to 0.57735.
@@ -155,6 +146,43 @@ inline void b3ComputeBasis(const b3Vec3& a, b3Vec3* b, b3Vec3* c) {
 
 	*b = b3Normalize(*b);
 	*c = b3Cross(a, *b);
+}
+
+inline b3Vec3 b3GetOrthonormal(const b3Vec3& v) {
+	b3Vec3 out;
+
+	// v is the passed vector
+	float ax = abs(v.x);
+	float ay = abs(v.y);
+	float az = abs(v.z);
+
+	if (ax < ay)
+	{
+		if (ax < az)
+		{
+			// ZeroX:
+			out.Set(0.0f, -v.z, v.y);
+		}
+		else
+		{
+			// ZeroZ:
+			out.Set(-v.y, v.x, 0.0f);
+		}
+	}
+	else
+	{
+		if (ay < az)
+		{
+			// ZeroY:
+			out.Set(-v.z, 0.0f, v.x);
+		}
+		else
+		{
+			// ZeroZ:
+			out.Set(-v.y, v.x, 0.0f);
+		}
+	}
+	return out;
 }
 
 #endif

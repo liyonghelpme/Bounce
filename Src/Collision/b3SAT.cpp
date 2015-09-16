@@ -1,23 +1,19 @@
 /*
-******************************************************************************
-   Copyright (c) 2015 Irlan Robson http://www.irlanengine.wordpress.com
-
-   This software is provided 'as-is', without any express or implied
-   warranty. In no event will the authors be held liable for any damages
-   arising from the use of this software.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-	 claim that you wrote the original software. If you use this software
-	 in a product, an acknowledgment in the product documentation would be
-	 appreciated but is not required.
-   2. Altered source versions must be plainly marked as such, and must not
-	 be misrepresented as being the original software.
-   3. This notice may not be removed or altered from any source distribution.
-*******************************************************************************
+* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
 */
 
 #include "b3Sat.h"
@@ -26,7 +22,7 @@
 
 /*
 *****************************************************************
-Author: Dirk Gregorius (GDC 2013).
+References: Dirk Gregorius GDC 2013 Presentation.
 A fast implementation of the Separating Axis Test (SAT) using the
 Gauss-Map optimization to skip edge pairs that don't build a face 
 on the Minkowski Difference (edges that aren't supporting edges).
@@ -51,6 +47,14 @@ void b3QueryFaceDirections(b3FaceQuery& out, const b3Transform& transform1, cons
 			out.index = i;
 		}
 	}
+}
+
+bool b3IsSeparationAxis(const b3Transform& transform, const b3Hull* hull1, const b3Hull* hull2, i32 axis1) {
+	b3Plane plane = transform * hull1->GetPlane(axis1);
+	b3Vec3 support = hull2->GetSupport(-plane.normal);
+	r32 distance = b3Distance(plane, support);
+	
+	return distance > B3_ZERO ? true : false;
 }
 
 // If an edge pair doesn't build a face on the MD then it isn't a supporting edge.
@@ -307,6 +311,8 @@ void b3ComputeIncidentFacePolygon(b3ClipPolygon& output, const b3Plane& facePlan
 		}
 	}
 
+	// Clip this polygon against all planes here.
+
 	const b3HalfEdge* start = hull->GetEdge(hull->GetFace(index)->edge);
 	const b3HalfEdge* current = start;
 	do {
@@ -314,13 +320,13 @@ void b3ComputeIncidentFacePolygon(b3ClipPolygon& output, const b3Plane& facePlan
 
 		b3Vec3 P = transform * hull->GetVertex(current->origin);
 
-		b3Assert(output.vertCount < B3_MAX_FACE_VERTICES);
+		b3Assert(output.vertCount <= B3_MAX_FACE_VERTICES);
 
 		//@todo I'm not completely sure if the contact IDs are correct.
 		b3ClipVertex clipVertex;
 		clipVertex.featurePair.inEdge1 = NULL_EDGE;
 		clipVertex.featurePair.outEdge1 = NULL_EDGE;
-		clipVertex.featurePair.inEdge2 = current->prev;
+		clipVertex.featurePair.inEdge2 = current->next;
 		clipVertex.featurePair.outEdge2 = twin->twin;
 		clipVertex.position = P;
 		
@@ -386,11 +392,64 @@ void b3CreateFaceContact(b3Manifold& output, const b3FaceQuery& input, const b3T
 void b3HullHullContact(b3Manifold& output, const b3Transform& transform1, const b3Shape* shape1, const b3Transform& transform2, const b3Shape* shape2) {
 	const b3Hull* hull1 = ((b3Polyhedron*)shape1)->GetHull();
 	const b3Hull* hull2 = ((b3Polyhedron*)shape2)->GetHull();
+	/*
+	if (output.cache.type != -1) {
+
+		if (output.cache.type == 1) {
+			if (output.cache.shape == 1) {
+				b3Transform transform = b3MulT(transform2, transform1);
+				if (b3IsSeparationAxis(transform, hull1, hull2, output.cache.face)) {
+					return;
+				}
+			}
+			else {
+				b3Transform transform = b3MulT(transform1, transform2);
+				if (b3IsSeparationAxis(transform, hull2, hull1, output.cache.face)) {
+					return;
+				}
+			}
+		}
+		else {
+			const b3HalfEdge* edge1 = hull1->GetEdge(output.cache.edge1);
+			const b3HalfEdge* twin1 = hull1->GetEdge(output.cache.edge1 + 1);
+
+			const b3HalfEdge* edge2 = hull2->GetEdge(output.cache.edge2);
+			const b3HalfEdge* twin2 = hull2->GetEdge(output.cache.edge2 + 1);
+
+			b3Transform transform = b3MulT(transform2, transform1);
+			b3Vec3 C1 = transform.translation;
+
+			b3Vec3 P1 = transform * hull1->GetVertex(edge1->origin);
+			b3Vec3 Q1 = transform * hull1->GetVertex(twin1->origin);
+			b3Vec3 E1 = Q1 - P1;
+
+			b3Vec3 U1 = transform.rotation * hull1->GetPlane(edge1->face).normal;
+			b3Vec3 V1 = transform.rotation * hull1->GetPlane(twin1->face).normal;
+
+			b3Vec3 P2 = hull2->GetVertex(edge2->origin);
+			b3Vec3 Q2 = hull2->GetVertex(twin2->origin);
+			b3Vec3 E2 = Q2 - P2;
+
+			b3Vec3 U2 = hull2->GetPlane(edge2->face).normal;
+			b3Vec3 V2 = hull2->GetPlane(twin2->face).normal;
+
+			if (b3IsMinkowskiFace(U1, V1, -E1, -U2, -V2, -E2)) {
+				r32 distance = b3Project(P1, E1, P2, E2, C1);
+				if (distance > 0.0f) {
+					return;
+				}
+			}
+		}
+	}
+	*/
 
 	// Query first hull minimum penetration axis and distance.
 	b3FaceQuery faceQuery1;
 	b3QueryFaceDirections(faceQuery1, transform1, hull1, transform2, hull2);
 	if (faceQuery1.distance > B3_ZERO) {
+		output.cache.shape = 1;
+		output.cache.face = faceQuery1.index;
+		output.cache.type = 1;
 		return;
 	}
 
@@ -398,6 +457,9 @@ void b3HullHullContact(b3Manifold& output, const b3Transform& transform1, const 
 	b3FaceQuery faceQuery2;
 	b3QueryFaceDirections(faceQuery2, transform2, hull2, transform1, hull1);
 	if (faceQuery2.distance > B3_ZERO) {
+		output.cache.shape = 2;
+		output.cache.face = faceQuery2.index;
+		output.cache.type = 1;
 		return;
 	}
 
@@ -405,12 +467,15 @@ void b3HullHullContact(b3Manifold& output, const b3Transform& transform1, const 
 	b3EdgeQuery edgeQuery;
 	b3QueryEdgeDirections(edgeQuery, transform1, hull1, transform2, hull2);
 	if (edgeQuery.distance > B3_ZERO) {
+		output.cache.type = 2;
+		output.cache.edge1 = edgeQuery.index1;
+		output.cache.edge2 = edgeQuery.index2;
 		return;
 	}
 
 	const r32 kRelEdgeTolerance = r32(0.90); //90%
 	const r32 kRelFaceTolerance = r32(0.95); //95%
-	const r32 kAbsTolerance = r32(0.5) * B3_SLOP;
+	const r32 kAbsTolerance = r32(0.5) * B3_LINEAR_SLOP;
 
 	// Favor face contacts over edge contacts.
 	r32 maxFaceSeparation = b3Max(faceQuery1.distance, faceQuery2.distance);

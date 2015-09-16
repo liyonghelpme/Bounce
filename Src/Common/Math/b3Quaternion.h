@@ -1,23 +1,19 @@
 /*
-******************************************************************************
-   Copyright (c) 2015 Irlan Robson http://www.irlanengine.wordpress.com
-
-   This software is provided 'as-is', without any express or implied
-   warranty. In no event will the authors be held liable for any damages
-   arising from the use of this software.
-
-   Permission is granted to anyone to use this software for any purpose,
-   including commercial applications, and to alter it and redistribute it
-   freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-	 claim that you wrote the original software. If you use this software
-	 in a product, an acknowledgment in the product documentation would be
-	 appreciated but is not required.
-   2. Altered source versions must be plainly marked as such, and must not
-	 be misrepresented as being the original software.
-   3. This notice may not be removed or altered from any source distribution.
-*******************************************************************************
+* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
+*
+* This software is provided 'as-is', without any express or implied
+* warranty.  In no event will the authors be held liable for any damages
+* arising from the use of this software.
+* Permission is granted to anyone to use this software for any purpose,
+* including commercial applications, and to alter it and redistribute it
+* freely, subject to the following restrictions:
+* 1. The origin of this software must not be misrepresented; you must not
+* claim that you wrote the original software. If you use this software
+* in a product, an acknowledgment in the product documentation would be
+* appreciated but is not required.
+* 2. Altered source versions must be plainly marked as such, and must not be
+* misrepresented as being the original software.
+* 3. This notice may not be removed or altered from any source distribution.
 */
 
 #ifndef __B3_QUATERNION_H__
@@ -52,31 +48,29 @@ struct b3Quaternion {
 	// Compute this quaternion given an axis and the angle of rotation about
 	// the axis.
 	void Set(const b3Vec3& axis, r32 radians) {
-		r32 halfAngle = B3_HALF * radians;
-		r32 s = ::sin(halfAngle);
+		r32 theta = B3_HALF * radians;
+		r32 s = ::sin(theta);
 		a = s * axis.x;
 		b = s * axis.y;
 		c = s * axis.z;
-		d = ::cos(halfAngle);
+		d = ::cos(theta);
 	}
 
 	// Normalize the quarternion (if needed).
 	b3Quaternion& Normalize() {
-		r32 s = a * a + b * b + c * c + d * d;
-		if (s == B3_ZERO) {
-			d = B3_ONE;
-		}
-		else {
-			s = B3_ONE / b3Sqrt(s);
-		}
+		r32 len = b3Sqrt(a * a + b * b + c * c + d * d);
+		if (len) {
+			r32 s = B3_ONE / len;
 
-		if (s > B3_EPSILON) {
 			a *= s;
 			b *= s;
 			c *= s;
 			d *= s;
 		}
-
+		else {
+			a = b = c = B3_ZERO;
+			d = B3_ONE;
+		}
 		return (*this);
 	}
 

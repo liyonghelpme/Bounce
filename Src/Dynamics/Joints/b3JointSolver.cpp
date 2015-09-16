@@ -16,37 +16,35 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifndef __B3_CONTACT_GRAPH_H__
-#define __B3_CONTACT_GRAPH_H__
+#include "b3JointSolver.h"
+#include "..\..\Common\b3Time.h"
 
-#include "..\..\Collision\b3BroadPhase.h"
+b3JointSolver::b3JointSolver(const b3JointSolverDef* def) {
+	m_count = def->count;
+	m_joints = def->joints;
 
-class b3BlockAllocator;
-class b3Contact;
-class b3ContactListener;
+	m_solverData.invdt = def->dt > B3_ZERO ? B3_ONE / def->dt : B3_ZERO;
+	m_solverData.positions = def->positions;
+	m_solverData.velocities = def->velocities;
+}
 
-class b3ContactGraph {
-public :
-	b3ContactGraph();
+void b3JointSolver::InitializeVelocityConstraints() {
+	for (u32 i = 0; i < m_count; ++i) {
+		b3Joint* j = m_joints[i];
+		j->InitializeVelocityConstraint(&m_solverData);
+	}
+}
 
-	// The broad-phase will notify us if ther is a potential shape pair shapes colliding.
-	void AddPair(void* data1, void* data2);
-	// The broad-phase will contact us if ther is a potential shape pair shapes colliding.
-	void DestroyContact(b3Contact* c);
-	
-	// Get the potential colliding shape pairs (broad-phase).
-	void FindNewContacts();
-	// Get the actual colliding shapes (narrow-phase).
-	void UpdateContacts();
-protected :
-	friend class b3Scene;
-	friend class b3Body;
+void b3JointSolver::WarmStart() {
+	for (u32 i = 0; i < m_count; ++i) {
+		b3Joint* j = m_joints[i];
+		j->WarmStart(&m_solverData);
+	}
+}
 
-	b3BlockAllocator* m_blockAllocator;
-	b3BroadPhase m_broadPhase;
-	b3Contact* m_contactList;
-	u32 m_contactCount;
-	b3ContactListener* m_contactListener;
-};
-
-#endif
+void b3JointSolver::SolveVelocityConstraints() {
+	for (u32 i = 0; i < m_count; ++i) {
+		b3Joint* j = m_joints[i];
+		j->SolveVelocityConstraint(&m_solverData);
+	}
+}
