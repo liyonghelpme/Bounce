@@ -2,7 +2,7 @@
 
 <h3>Abstract</h3>
 
-Bounce is a lightweight, fast, and open-source 3D physics engine for games. It simulates joints and rigid bodies, supports general convex polyhedras, and can efficiently evaluate ray-casting and AABB queries.
+Bounce is a lightweight, fast, and open-source 3D physics engine for games. It simulates joints and rigid bodies, supports general convex polyhedras, and can efficiently evaluate ray-casting information and AABB queries.
 
 <h3>Instructions</h3>
 
