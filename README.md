@@ -2,11 +2,11 @@
 
 <h3>Abstract</h3>
 
-Bounce is a lightweight, fast, and open-source 3D physics engine for games. It simulates rigid bodies and supports general convex polyhedras.
+Bounce is a lightweight, fast, and open-source 3D physics engine for games. It simulates joints and rigid bodies and supports general convex polyhedras.
 
 <h3>Instructions</h3>
 
-The basic instructions can be reached using the following link:
+Note: The basic documentation should be updated. Bounce is currently simulating joints. The basic instructions can be reached using the following link:
 
 https://irlans.files.wordpress.com/2015/07/bounce-doc.pdf
 
