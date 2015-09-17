@@ -121,7 +121,7 @@ void b3Island::Solve(const b3Vec3& gravityDir) {
 	jointSolver.WarmStart();
 	contactSolver.WarmStart();
 	
-	// Solve joint velocity constraints.
+	// Solve velocity constraints.
 	for (u32 i = 0; i < velocityIterations; ++i) {
 		jointSolver.SolveVelocityConstraints();
 		contactSolver.SolveVelocityConstraints();
