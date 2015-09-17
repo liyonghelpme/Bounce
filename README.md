@@ -32,6 +32,8 @@ Press ESC to exit the application;
 
 Before running the Bounce Testbed please make sure that you have the Visual C++ 2015 Redistributable Packages installed on your machine. If you don't have them installed then they can be downloaded at https://www.microsoft.com/en-us/download/details.aspx?id=48145.
 
+<img src="https://irlans.files.wordpress.com/2015/09/bounce-screen.png" alt="Bounce Demo Application" width=640 height=480 align="middle">
+
 <img src="https://irlans.files.wordpress.com/2015/09/bounce-2.png" alt="Bounce Demo Application" width=640 height=480 align="middle">
 
 <h3>Credits</h3>
