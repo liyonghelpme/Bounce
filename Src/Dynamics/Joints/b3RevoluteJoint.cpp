@@ -1,21 +1,3 @@
-/*
-* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
-*
-* This software is provided 'as-is', without any express or implied
-* warranty.  In no event will the authors be held liable for any damages
-* arising from the use of this software.
-* Permission is granted to anyone to use this software for any purpose,
-* including commercial applications, and to alter it and redistribute it
-* freely, subject to the following restrictions:
-* 1. The origin of this software must not be misrepresented; you must not
-* claim that you wrote the original software. If you use this software
-* in a product, an acknowledgment in the product documentation would be
-* appreciated but is not required.
-* 2. Altered source versions must be plainly marked as such, and must not be
-* misrepresented as being the original software.
-* 3. This notice may not be removed or altered from any source distribution.
-*/
-
 #include "b3RevoluteJoint.h"
 #include "..\b3Body.h"
 #include "..\..\Common\b3Time.h"
@@ -40,8 +22,12 @@ b3RevoluteJoint::b3RevoluteJoint(const b3RevoluteJointDef* def) {
 	m_velocityBias2 = B3_ZERO;
 	m_accLambda2 = B3_ZERO;
 
-	m_enableLimits = false;
+	m_limitState = e_betweenLimits;
+	m_solverLo = B3_ZERO;
+	m_solverHi = B3_ZERO;
 	m_accLambda3 = B3_ZERO;
+
+	b3Assert(m_low < m_high);
 }
 
 void b3RevoluteJoint::InitializeVelocityConstraint(const b3SolverData* data) {
@@ -79,10 +65,10 @@ void b3RevoluteJoint::InitializeVelocityConstraint(const b3SolverData* data) {
 	b3Vec3 vB = data->velocities[indexB].v;
 	b3Vec3 wB = data->velocities[indexB].w;
 
+	b3Mat33 iAB = iA + iB;
+
 	// Initialize the revolute constraint.
 	{
-		b3Mat33 iAB = iA + iB;
-
 		{
 			// The u2 axis must be orthogonal to w1 (orthogonality condition).
 			r32 C = b3Dot(u2, w1);
@@ -109,7 +95,7 @@ void b3RevoluteJoint::InitializeVelocityConstraint(const b3SolverData* data) {
 	// Initialize the revolute joint axis angle limit position constraint C(w(t)) = lo < theta < hi.
 	{
 		// Compute the angle between the two reference frames.
-		// @note: atan2(sine, cosine) = f(y, x)!
+		// @note: atan2(sine, cosine) = f(y, x)!	
 		r32 cosine = b3Dot(u2, u1);
 		r32 sine = b3Dot(u2, v1);
 		r32 theta = atan2(sine, cosine);
@@ -118,31 +104,52 @@ void b3RevoluteJoint::InitializeVelocityConstraint(const b3SolverData* data) {
 
 		if (theta >= m_low && theta <= m_high) {
 			// The position constraint is satisfied (the angle is between the angle limits).
-			m_enableLimits = false;
+			m_limitState = e_betweenLimits;
+			m_accLambda3 = B3_ZERO;
+			m_velocityBias3 = B3_ZERO;
+
 		}
 		else {
 			// The position constraint is violated.
-			m_enableLimits = true;
 			m_w1 = w1;
 
 			// Compute position constraint error and set velocity bias = -frequency * beta * error.
-			if (theta < m_low) {
+			if (theta <= m_low) {
 				// Lower limit <=> Enforce theta >= low.
-				r32 C = theta - m_low;
-				// Allow some slop.
-				if (b3Abs(C) < B3_ANGULAR_SLOP) {
-					C = B3_ZERO;
+					// Reset accumulated lambda if the last state
+					// is different from the current one.
+				if (m_limitState != e_lowerLimit) {
+					m_accLambda3 = B3_ZERO;
+					m_limitState = e_lowerLimit;
 				}
-				m_velocityBias3 = -frequency * B3_BAUMGARTE * C;
+				
+				// Allow some slop.
+				if (theta > m_low - B3_ANGULAR_SLOP) {
+					r32 C = B3_ZERO;
+					m_velocityBias3 = -frequency * B3_BAUMGARTE * C;
+				}
+				else {
+					r32 C = theta - m_low;
+					m_velocityBias3 = -frequency * B3_BAUMGARTE * C;
+				}
 			}
-			else if (theta > m_high) {
-				// Upper limit <=> Enforce theta <= high.
-				r32 C = theta - m_high;
-				// Allow some slop.
-				if (b3Abs(C) < B3_ANGULAR_SLOP) {
-					C = B3_ZERO;
+			else if (theta >= m_high) {
+				// Reset accumulated lambda if the last state
+				// is different from the current one.
+				if (m_limitState != e_upperLimit) {
+					m_accLambda3 = B3_ZERO;
+					m_limitState = e_upperLimit;
 				}
-				m_velocityBias3 = -frequency * B3_BAUMGARTE * C;
+
+				// Upper limit <=> Enforce theta <= high.
+				if (theta < m_high + B3_ANGULAR_SLOP) {
+					r32 C = B3_ZERO;
+					m_velocityBias3 = -frequency * B3_BAUMGARTE * C;
+				}
+				else {
+					r32 C = theta - m_high;
+					m_velocityBias3 = -frequency * B3_BAUMGARTE * C;
+				}
 			}
 			else {
 				// Is this position constraint satisfied?! No.
@@ -214,7 +221,7 @@ void b3RevoluteJoint::WarmStart(const b3SolverData* data) {
 		
 		b3Vec3 impulse = impulse1 + impulse2;
 
-		if (m_enableLimits) {
+		if (m_limitState != e_betweenLimits) {
 			b3Vec3 impulse3 = m_accLambda3 * m_w1;
 			impulse += impulse3;
 		}
@@ -316,10 +323,8 @@ void b3RevoluteJoint::SolveVelocityConstraint(const b3SolverData* data) {
 	}
 
 	// Solve revolute angle limits (inequality constraints).
-	if (m_enableLimits) {
+	if (m_limitState != e_betweenLimits) {
 		b3Vec3 w1 = m_w1;
-		r32 lo = m_low;
-		r32 hi = m_high;
 		r32 velocityBias = m_velocityBias3;
 		r32 lambda0 = m_accLambda3;
 
@@ -330,7 +335,7 @@ void b3RevoluteJoint::SolveVelocityConstraint(const b3SolverData* data) {
 		// Compute the new, total, and delta lambdas for
 		// this (inequality) constraint.
 		r32 lambda = -dCdt + velocityBias;
-		r32 newLambda = b3Clamp(lambda0 + lambda, lo, hi);
+		r32 newLambda = m_limitState == e_lowerLimit ? b3Max(lambda0 + lambda, B3_ZERO) : b3Min(lambda0 + lambda, B3_ZERO);
 		r32 deltaLambda = newLambda - lambda0;
 		// Set lambda for the next iteration and for warm starting.
 		lambda0 = newLambda;

@@ -1,21 +1,3 @@
-/*
-* Copyright (c) 2015-2015 Irlan Robson http://www.irlans.wordpress.com
-*
-* This software is provided 'as-is', without any express or implied
-* warranty.  In no event will the authors be held liable for any damages
-* arising from the use of this software.
-* Permission is granted to anyone to use this software for any purpose,
-* including commercial applications, and to alter it and redistribute it
-* freely, subject to the following restrictions:
-* 1. The origin of this software must not be misrepresented; you must not
-* claim that you wrote the original software. If you use this software
-* in a product, an acknowledgment in the product documentation would be
-* appreciated but is not required.
-* 2. Altered source versions must be plainly marked as such, and must not be
-* misrepresented as being the original software.
-* 3. This notice may not be removed or altered from any source distribution.
-*/
-
 #ifndef __B3_REVOLUTE_JOINT_H__
 #define __B3_REVOLUTE_JOINT_H__
 
@@ -50,6 +32,12 @@ struct b3RevoluteJointDef : b3JointDef {
 
 class b3RevoluteJoint : public b3Joint {
 public :
+	enum b3LimitState {
+		e_lowerLimit,
+		e_upperLimit,
+		e_betweenLimits,
+	};
+
 	// Get the joint type.
 	virtual b3JointType GetType() const { return b3JointType::e_revoluteJoint; }
 	
@@ -78,6 +66,9 @@ protected :
 	// The local joint frames on each body.
 	b3Transform m_localFrameA;
 	b3Transform m_localFrameB;
+	// The angle limits.
+	r32 m_low;
+	r32 m_high;
 
 	// Relative revolute velocity constraint data.
 	b3Vec3 m_u2xw1;
@@ -91,10 +82,10 @@ protected :
 	r32 m_accLambda2;
 
 	// Revolute joint axis angle limits velocity constraint data.
-	bool m_enableLimits;
+	b3LimitState m_limitState;
+	r32 m_solverLo;
+	r32 m_solverHi;
 	b3Vec3 m_w1;
-	r32 m_low;
-	r32 m_high;
 	r32 m_velocityBias3;
 	r32 m_accLambda3;
 
@@ -120,6 +111,7 @@ inline void b3RevoluteJoint::SetLocalFrames(const b3Transform& localFrameA, cons
 }
 
 inline void b3RevoluteJoint::SetAngleLimits(r32 low, r32 high) {
+	b3Assert(low < high);
 	m_low = low;
 	m_high = high;
 }
