@@ -41,8 +41,6 @@ b3RevoluteJoint::b3RevoluteJoint(const b3RevoluteJointDef* def) {
 	m_accLambda2 = B3_ZERO;
 
 	m_limitState = e_betweenLimits;
-	m_solverLo = B3_ZERO;
-	m_solverHi = B3_ZERO;
 	m_accLambda3 = B3_ZERO;
 
 	b3Assert(m_low < m_high);
