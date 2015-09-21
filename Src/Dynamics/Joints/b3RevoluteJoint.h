@@ -101,8 +101,6 @@ protected :
 
 	// Revolute joint axis angle limits velocity constraint data.
 	b3LimitState m_limitState;
-	r32 m_solverLo;
-	r32 m_solverHi;
 	b3Vec3 m_w1;
 	r32 m_velocityBias3;
 	r32 m_accLambda3;
